@@ -108,6 +108,13 @@ export class MediaRequest {
           requestBody.is4k ? '4K ' : ''
         }series requests.`
       );
+    } else if (
+      requestBody.mediaType === MediaType.MUSIC &&
+      !requestUser.hasPermission([Permission.REQUEST], { type: 'or' })
+    ) {
+      throw new RequestPermissionError(
+        'You do not have permission to make music requests.'
+      );
     }
 
     const quotas = await requestUser.getQuota();
@@ -118,6 +125,83 @@ export class MediaRequest {
       throw new QuotaRestrictedError('Series Quota exceeded.');
     }
 
+    // --- MUSIC REQUEST ---
+    if (requestBody.mediaType === MediaType.MUSIC) {
+      if (!requestBody.mbId) {
+        throw new Error('mbId (MusicBrainz ID) is required for music requests.');
+      }
+
+      let media = await mediaRepository.findOne({
+        where: { mbId: requestBody.mbId, mediaType: MediaType.MUSIC },
+        relations: ['requests'],
+      });
+
+      if (!media) {
+        media = new Media({
+          mbId: requestBody.mbId,
+          tmdbId: 0,
+          status: MediaStatus.PENDING,
+          status4k: MediaStatus.UNKNOWN,
+          mediaType: MediaType.MUSIC,
+        });
+      } else {
+        if (media.status === MediaStatus.BLOCKLISTED) {
+          throw new BlocklistedMediaError('This media is blocklisted.');
+        }
+        if (media.status === MediaStatus.UNKNOWN) {
+          media.status = MediaStatus.PENDING;
+        }
+      }
+
+      const existing = await requestRepository
+        .createQueryBuilder('request')
+        .leftJoin('request.media', 'media')
+        .leftJoinAndSelect('request.requestedBy', 'user')
+        .where('media.mbId = :mbId', { mbId: requestBody.mbId })
+        .andWhere('media.mediaType = :mediaType', { mediaType: MediaType.MUSIC })
+        .getMany();
+
+      if (
+        existing.length > 0 &&
+        existing[0].status !== MediaRequestStatus.DECLINED &&
+        existing[0].status !== MediaRequestStatus.COMPLETED
+      ) {
+        throw new DuplicateMediaRequestError(
+          'Request for this music already exists.'
+        );
+      }
+
+      await mediaRepository.save(media);
+
+      const request = new MediaRequest({
+        type: MediaType.MUSIC,
+        media,
+        requestedBy: requestUser,
+        status: user.hasPermission(
+          [Permission.AUTO_APPROVE, Permission.MANAGE_REQUESTS],
+          { type: 'or' }
+        )
+          ? MediaRequestStatus.APPROVED
+          : MediaRequestStatus.PENDING,
+        modifiedBy: user.hasPermission(
+          [Permission.AUTO_APPROVE, Permission.MANAGE_REQUESTS],
+          { type: 'or' }
+        )
+          ? user
+          : undefined,
+        is4k: false,
+        serverId: requestBody.serverId,
+        profileId: requestBody.profileId,
+        rootFolder: requestBody.rootFolder,
+        tags: requestBody.tags,
+        isAutoRequest: options.isAutoRequest ?? false,
+      });
+
+      await requestRepository.save(request);
+      return request;
+    }
+
+    // --- MOVIE / TV (existing logic) ---
     const tmdbMedia =
       requestBody.mediaType === MediaType.MOVIE
         ? await tmdb.getMovie({ movieId: requestBody.mediaId })

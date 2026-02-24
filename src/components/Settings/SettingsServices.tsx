@@ -8,6 +8,7 @@ import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
 import OverrideRuleModal from '@app/components/Settings/OverrideRule/OverrideRuleModal';
 import OverrideRuleTiles from '@app/components/Settings/OverrideRule/OverrideRuleTiles';
+import LidarrModal from '@app/components/Settings/LidarrModal';
 import RadarrModal from '@app/components/Settings/RadarrModal';
 import SonarrModal from '@app/components/Settings/SonarrModal';
 import globalMessages from '@app/i18n/globalMessages';
@@ -16,9 +17,9 @@ import { Transition } from '@headlessui/react';
 import { PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
 import type OverrideRule from '@server/entity/OverrideRule';
 import type { OverrideRuleResultsResponse } from '@server/interfaces/api/overrideRuleInterfaces';
-import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
+import type { LidarrSettings, RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import axios from 'axios';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
@@ -26,8 +27,14 @@ const messages = defineMessages('components.Settings', {
   services: 'Services',
   radarrsettings: 'Radarr Settings',
   sonarrsettings: 'Sonarr Settings',
+  lidarrsettings: 'Lidarr Settings',
+  lastfmsettings: 'Last.fm Settings',
   serviceSettingsDescription:
     'Configure your {serverType} server(s) below. You can connect multiple {serverType} servers, but only two of them can be marked as defaults (one non-4K and one 4K). Administrators are able to override the server used to process new requests prior to approval.',
+  lidarrSettingsDescription:
+    'Configure your Lidarr server below to enable music download requests. Lidarr will handle downloading the music from your preferred sources.',
+  lastfmSettingsDescription:
+    'Connect your Last.fm account to enable personalised music recommendations based on your scrobbling history. This unlocks Similar Artist suggestions, Top Albums, and Recently Played tracks in the Discover section.',
   deleteserverconfirm: 'Are you sure you want to delete this server?',
   ssl: 'SSL',
   default: 'Default',
@@ -37,19 +44,34 @@ const messages = defineMessages('components.Settings', {
   activeProfile: 'Active Profile',
   addradarr: 'Add Radarr Server',
   addsonarr: 'Add Sonarr Server',
+  addlidarr: 'Add Lidarr Server',
   noDefaultServer:
     'At least one {serverType} server must be marked as default in order for {mediaType} requests to be processed.',
   noDefaultNon4kServer:
     'If you only have a single {serverType} server for both non-4K and 4K content (or if you only download 4K content), your {serverType} server should <strong>NOT</strong> be designated as a 4K server.',
   noDefault4kServer:
     'A 4K {serverType} server must be marked as default in order to enable users to submit 4K {mediaType} requests.',
+  noDefaultLidarrServer:
+    'At least one Lidarr server must be marked as default in order for music requests to be processed.',
   mediaTypeMovie: 'movie',
   mediaTypeSeries: 'series',
+  mediaTypeMusic: 'music',
   deleteServer: 'Delete {serverType} Server',
   overrideRules: 'Override Rules',
   overrideRulesDescription:
     'Override rules allow you to specify properties that will be replaced if a request matches the rule.',
   addrule: 'New Override Rule',
+  lastfmApiKey: 'Last.fm API Key',
+  lastfmApiKeyDescription:
+    'Obtain a free API key at last.fm/api. Required for scrobbler-based recommendations.',
+  lastfmUsername: 'Last.fm Username',
+  lastfmUsernameDescription:
+    'Your Last.fm username — used to personalise recommendations based on your listening history.',
+  testConnection: 'Test Connection',
+  saveLastfm: 'Save Last.fm Settings',
+  lastfmSaveSuccess: 'Last.fm settings saved successfully',
+  lastfmTestSuccess: 'Last.fm API key is valid!',
+  lastfmTestFailure: 'Failed to connect to Last.fm. Check your API key.',
 });
 
 interface ServerInstanceProps {
@@ -215,6 +237,15 @@ const SettingsServices = () => {
     error: sonarrError,
     mutate: revalidateSonarr,
   } = useSWR<SonarrSettings[]>('/api/v1/settings/sonarr');
+  const {
+    data: lidarrData,
+    error: lidarrError,
+    mutate: revalidateLidarr,
+  } = useSWR<LidarrSettings[]>('/api/v1/settings/lidarr');
+  const {
+    data: lastfmData,
+    mutate: revalidateLastfm,
+  } = useSWR<{ apiKey: string; username?: string }>('/api/v1/settings/lastfm');
   const { data: rules, mutate: revalidate } =
     useSWR<OverrideRuleResultsResponse>('/api/v1/overrideRule');
   const [editRadarrModal, setEditRadarrModal] = useState<{
@@ -231,9 +262,16 @@ const SettingsServices = () => {
     open: false,
     sonarr: null,
   });
+  const [editLidarrModal, setEditLidarrModal] = useState<{
+    open: boolean;
+    lidarr: LidarrSettings | null;
+  }>({
+    open: false,
+    lidarr: null,
+  });
   const [deleteServerModal, setDeleteServerModal] = useState<{
     open: boolean;
-    type: 'radarr' | 'sonarr';
+    type: 'radarr' | 'sonarr' | 'lidarr';
     serverId: number | null;
   }>({
     open: false,
@@ -247,6 +285,18 @@ const SettingsServices = () => {
     open: false,
     rule: null,
   });
+  const [lastfmApiKey, setLastfmApiKey] = useState('');
+  const [lastfmUsername, setLastfmUsername] = useState('');
+  const [lastfmSaving, setLastfmSaving] = useState(false);
+  const [lastfmTesting, setLastfmTesting] = useState(false);
+
+  // Populate Last.fm form when data loads
+  useEffect(() => {
+    if (lastfmData) {
+      setLastfmApiKey(lastfmData.apiKey ?? '');
+      setLastfmUsername(lastfmData.username ?? '');
+    }
+  }, [lastfmData]);
 
   const deleteServer = async () => {
     await axios.delete(
@@ -255,7 +305,30 @@ const SettingsServices = () => {
     setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
     revalidateRadarr();
     revalidateSonarr();
+    revalidateLidarr();
     mutate('/api/v1/settings/public');
+  };
+
+  const saveLastfm = async () => {
+    setLastfmSaving(true);
+    try {
+      await axios.post('/api/v1/settings/lastfm', {
+        apiKey: lastfmApiKey,
+        username: lastfmUsername,
+      });
+      revalidateLastfm();
+    } finally {
+      setLastfmSaving(false);
+    }
+  };
+
+  const testLastfm = async () => {
+    setLastfmTesting(true);
+    try {
+      await axios.post('/api/v1/settings/lastfm/test', { apiKey: lastfmApiKey });
+    } finally {
+      setLastfmTesting(false);
+    }
   };
 
   return (
@@ -304,6 +377,17 @@ const SettingsServices = () => {
           }}
         />
       )}
+      {editLidarrModal.open && (
+        <LidarrModal
+          lidarr={editLidarrModal.lidarr}
+          onClose={() => setEditLidarrModal({ open: false, lidarr: null })}
+          onSave={() => {
+            revalidateLidarr();
+            mutate('/api/v1/settings/public');
+            setEditLidarrModal({ open: false, lidarr: null });
+          }}
+        />
+      )}
       <Transition
         as={Fragment}
         show={deleteServerModal.open}
@@ -327,7 +411,11 @@ const SettingsServices = () => {
           }
           title={intl.formatMessage(messages.deleteServer, {
             serverType:
-              deleteServerModal.type === 'radarr' ? 'Radarr' : 'Sonarr',
+              deleteServerModal.type === 'radarr'
+                ? 'Radarr'
+                : deleteServerModal.type === 'sonarr'
+                  ? 'Sonarr'
+                  : 'Lidarr',
           })}
         >
           {intl.formatMessage(messages.deleteserverconfirm)}
@@ -553,6 +641,133 @@ const SettingsServices = () => {
           sonarrServices={sonarrData}
         />
       )}
+
+      {/* ── Lidarr ─────────────────────────────────────── */}
+      <div className="mb-6 mt-10">
+        <h3 className="heading">
+          {intl.formatMessage(messages.lidarrsettings)}
+        </h3>
+        <p className="description">
+          {intl.formatMessage(messages.lidarrSettingsDescription)}
+        </p>
+      </div>
+      <div className="section">
+        {!lidarrData && !lidarrError && <LoadingSpinner />}
+        {lidarrData && !lidarrError && (
+          <>
+            {lidarrData.length > 0 &&
+              !lidarrData.some((l) => l.isDefault) && (
+                <Alert
+                  title={intl.formatMessage(messages.noDefaultLidarrServer)}
+                />
+              )}
+            <ul className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+              {lidarrData.map((lidarr) => (
+                <ServerInstance
+                  key={`lidarr-config-${lidarr.id}`}
+                  name={lidarr.name}
+                  hostname={lidarr.hostname}
+                  port={lidarr.port}
+                  profileName={lidarr.activeProfileName}
+                  isSSL={lidarr.useSsl}
+                  isDefault={lidarr.isDefault}
+                  is4k={false}
+                  externalUrl={lidarr.externalUrl}
+                  onEdit={() => setEditLidarrModal({ open: true, lidarr })}
+                  onDelete={() =>
+                    setDeleteServerModal({
+                      open: true,
+                      serverId: lidarr.id,
+                      type: 'lidarr',
+                    })
+                  }
+                />
+              ))}
+              <li className="col-span-1 h-32 rounded-lg border-2 border-dashed border-gray-400 shadow sm:h-44">
+                <div className="flex h-full w-full items-center justify-center">
+                  <Button
+                    buttonType="ghost"
+                    onClick={() =>
+                      setEditLidarrModal({ open: true, lidarr: null })
+                    }
+                  >
+                    <PlusIcon />
+                    <span>{intl.formatMessage(messages.addlidarr)}</span>
+                  </Button>
+                </div>
+              </li>
+            </ul>
+          </>
+        )}
+      </div>
+
+      {/* ── Last.fm ─────────────────────────────────────── */}
+      <div className="mb-6 mt-10">
+        <h3 className="heading">
+          {intl.formatMessage(messages.lastfmsettings)}
+        </h3>
+        <p className="description">
+          {intl.formatMessage(messages.lastfmSettingsDescription)}
+        </p>
+      </div>
+      <div className="section">
+        <div className="max-w-2xl space-y-4">
+          <div className="form-row">
+            <label className="text-label">
+              {intl.formatMessage(messages.lastfmApiKey)}
+              <span className="label-tip">
+                {intl.formatMessage(messages.lastfmApiKeyDescription)}
+              </span>
+            </label>
+            <div className="form-input-area">
+              <input
+                type="password"
+                className="input"
+                value={lastfmApiKey}
+                onChange={(e) => setLastfmApiKey(e.target.value)}
+                placeholder="Last.fm API Key"
+              />
+            </div>
+          </div>
+          <div className="form-row">
+            <label className="text-label">
+              {intl.formatMessage(messages.lastfmUsername)}
+              <span className="label-tip">
+                {intl.formatMessage(messages.lastfmUsernameDescription)}
+              </span>
+            </label>
+            <div className="form-input-area">
+              <input
+                type="text"
+                className="input"
+                value={lastfmUsername}
+                onChange={(e) => setLastfmUsername(e.target.value)}
+                placeholder="your_lastfm_username"
+              />
+            </div>
+          </div>
+          <div className="flex space-x-3">
+            <Button
+              buttonType="warning"
+              disabled={!lastfmApiKey || lastfmTesting}
+              onClick={testLastfm}
+            >
+              {lastfmTesting
+                ? intl.formatMessage(globalMessages.testing)
+                : intl.formatMessage(messages.testConnection)}
+            </Button>
+            <Button
+              buttonType="primary"
+              disabled={lastfmSaving}
+              onClick={saveLastfm}
+            >
+              {lastfmSaving
+                ? intl.formatMessage(globalMessages.saving)
+                : intl.formatMessage(messages.saveLastfm)}
+            </Button>
+          </div>
+        </div>
+      </div>
     </>
   );
 };

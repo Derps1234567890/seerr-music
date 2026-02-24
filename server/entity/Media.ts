@@ -1,3 +1,4 @@
+import LidarrAPI from '@server/api/servarr/lidarr';
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { MediaStatus, MediaType } from '@server/constants/media';
@@ -100,6 +101,10 @@ class Media {
   @Column({ nullable: true })
   @Index()
   public imdbId?: string;
+
+  @Column({ nullable: true, type: 'varchar' })
+  @Index()
+  public mbId?: string | null;
 
   @Column({ type: 'int', default: MediaStatus.UNKNOWN })
   @Index()
@@ -335,6 +340,23 @@ class Media {
         }
       }
     }
+
+    if (this.mediaType === MediaType.MUSIC) {
+      if (this.serviceId !== null && this.externalServiceSlug !== null) {
+        const settings = getSettings();
+        const server = settings.lidarr.find(
+          (lidarr) => lidarr.id === this.serviceId
+        );
+        if (server) {
+          this.serviceUrl = server.externalUrl
+            ? `${server.externalUrl}/album/${this.externalServiceSlug}`
+            : LidarrAPI.buildUrl(
+                server,
+                `/album/${this.externalServiceSlug}`
+              );
+        }
+      }
+    }
   }
 
   @AfterLoad()
@@ -387,6 +409,20 @@ class Media {
         this.downloadStatus4k = downloadTracker.getSeriesProgress(
           this.serviceId4k,
           this.externalServiceId4k
+        );
+      }
+    }
+
+    if (this.mediaType === MediaType.MUSIC) {
+      if (
+        this.externalServiceId !== undefined &&
+        this.externalServiceId !== null &&
+        this.serviceId !== undefined &&
+        this.serviceId !== null
+      ) {
+        this.downloadStatus = downloadTracker.getMusicProgress(
+          this.serviceId,
+          this.externalServiceId
         );
       }
     }

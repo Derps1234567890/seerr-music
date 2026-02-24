@@ -4,6 +4,9 @@ export type AvailableCacheIds =
   | 'tmdb'
   | 'radarr'
   | 'sonarr'
+  | 'lidarr'
+  | 'musicbrainz'
+  | 'lastfm'
   | 'rt'
   | 'imdb'
   | 'github'
@@ -50,6 +53,15 @@ class CacheManager {
     }),
     radarr: new Cache('radarr', 'Radarr API'),
     sonarr: new Cache('sonarr', 'Sonarr API'),
+    lidarr: new Cache('lidarr', 'Lidarr API'),
+    musicbrainz: new Cache('musicbrainz', 'MusicBrainz API', {
+      stdTtl: 86400,
+      checkPeriod: 60 * 30,
+    }),
+    lastfm: new Cache('lastfm', 'Last.fm API', {
+      stdTtl: 3600,
+      checkPeriod: 60 * 10,
+    }),
     rt: new Cache('rt', 'Rotten Tomatoes API', {
       stdTtl: 43200,
       checkPeriod: 60 * 30,

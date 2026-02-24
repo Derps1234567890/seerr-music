@@ -5,6 +5,7 @@ import type {
   SonarrSeries,
 } from '@server/api/servarr/sonarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
 import TheMovieDb from '@server/api/themoviedb';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
 import {
@@ -939,6 +940,96 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     }
   }
 
+  public async sendToLidarr(entity: MediaRequest): Promise<void> {
+    if (
+      entity.status !== MediaRequestStatus.APPROVED ||
+      entity.type !== MediaType.MUSIC
+    ) {
+      return;
+    }
+
+    const settings = getSettings();
+    const mediaRepository = getRepository(MediaRequest);
+
+    const media = entity.media;
+    if (!media?.mbId) {
+      logger.warn('Music request is missing MusicBrainz ID. Cannot send to Lidarr.', {
+        label: 'Media Request Subscriber',
+        requestId: entity.id,
+      });
+      return;
+    }
+
+    const lidarrSettings = settings.lidarr.find(
+      (l) => entity.serverId !== undefined ? l.id === entity.serverId : l.isDefault
+    );
+
+    if (!lidarrSettings) {
+      logger.warn('No default Lidarr server configured. Cannot process music request.', {
+        label: 'Media Request Subscriber',
+        requestId: entity.id,
+      });
+      return;
+    }
+
+    const lidarr = new LidarrAPI({
+      apiKey: lidarrSettings.apiKey,
+      url: LidarrAPI.buildUrl(lidarrSettings, '/api/v1'),
+    });
+
+    try {
+      // Lookup the album from Lidarr's MusicBrainz catalogue
+      const album = await lidarr.getAlbumByMbAlbumId(media.mbId);
+
+      const artistMbid = album.artist?.foreignArtistId ?? '';
+      const artistName = album.artist?.artistName ?? 'Unknown Artist';
+
+      const addedAlbum = await lidarr.addAlbum({
+        title: album.title,
+        qualityProfileId: entity.profileId ?? lidarrSettings.activeProfileId,
+        metadataProfileId: lidarrSettings.metadataProfileId ?? 1,
+        mbAlbumId: media.mbId,
+        mbArtistId: artistMbid,
+        artistName,
+        rootFolderPath:
+          entity.rootFolder ?? lidarrSettings.activeDirectory,
+        tags:
+          entity.tags ??
+          lidarrSettings.tags ??
+          [],
+        monitored: true,
+        searchNow: !lidarrSettings.preventSearch,
+      });
+
+      // Update media with Lidarr service info
+      const mediaRepository2 = getRepository(Media);
+      const freshMedia = await mediaRepository2.findOne({
+        where: { id: media.id },
+      });
+
+      if (freshMedia) {
+        freshMedia.serviceId = lidarrSettings.id;
+        freshMedia.externalServiceId = addedAlbum.id;
+        freshMedia.externalServiceSlug = addedAlbum.foreignAlbumId;
+        freshMedia.status = MediaStatus.PROCESSING;
+        await mediaRepository2.save(freshMedia);
+      }
+
+      logger.info(`Music request sent to Lidarr: ${album.title}`, {
+        label: 'Media Request Subscriber',
+        requestId: entity.id,
+        lidarrAlbumId: addedAlbum.id,
+      });
+    } catch (e) {
+      logger.error('Failed to send music request to Lidarr', {
+        label: 'Media Request Subscriber',
+        requestId: entity.id,
+        errorMessage: e.message,
+        mbId: media.mbId,
+      });
+    }
+  }
+
   public async afterUpdate(event: UpdateEvent<MediaRequest>): Promise<void> {
     if (!event.entity) {
       return;
@@ -947,6 +1038,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     try {
       await this.sendToRadarr(event.entity as MediaRequest);
       await this.sendToSonarr(event.entity as MediaRequest);
+      await this.sendToLidarr(event.entity as MediaRequest);
       await this.updateParentStatus(event.entity as MediaRequest);
 
       if (event.entity.status === MediaRequestStatus.COMPLETED) {
@@ -974,6 +1066,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     try {
       await this.sendToRadarr(event.entity as MediaRequest);
       await this.sendToSonarr(event.entity as MediaRequest);
+      await this.sendToLidarr(event.entity as MediaRequest);
       await this.updateParentStatus(event.entity as MediaRequest);
     } catch (e) {
       logger.error('Error in afterInsert subscriber', {

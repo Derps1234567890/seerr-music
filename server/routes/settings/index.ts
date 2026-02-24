@@ -41,6 +41,7 @@ import semver from 'semver';
 import { URL } from 'url';
 import metadataRoutes from './metadata';
 import notificationRoutes from './notifications';
+import lidarrRoutes from './lidarr';
 import radarrRoutes from './radarr';
 import sonarrRoutes from './sonarr';
 
@@ -49,6 +50,7 @@ const settingsRoutes = Router();
 settingsRoutes.use('/notifications', notificationRoutes);
 settingsRoutes.use('/radarr', radarrRoutes);
 settingsRoutes.use('/sonarr', sonarrRoutes);
+settingsRoutes.use('/lidarr', lidarrRoutes);
 settingsRoutes.use('/discover', discoverSettingRoutes);
 settingsRoutes.use('/metadatas', metadataRoutes);
 
@@ -833,6 +835,36 @@ settingsRoutes.get('/about', async (req, res) => {
     tz: process.env.TZ,
     appDataPath: appDataPath(),
   } as SettingsAboutResponse);
+});
+
+settingsRoutes.get('/lastfm', (_req, res) => {
+  const settings = getSettings();
+  res.status(200).json(settings.lastfm);
+});
+
+settingsRoutes.post('/lastfm', async (req, res) => {
+  const settings = getSettings();
+  settings.lastfm = merge(settings.lastfm, req.body);
+  await settings.save();
+  return res.status(200).json(settings.lastfm);
+});
+
+settingsRoutes.post('/lastfm/test', async (req, res, next) => {
+  try {
+    const LastFmAPI = (await import('@server/api/lastfm')).default;
+    const api = new LastFmAPI(req.body.apiKey);
+    const ok = await api.testApiKey();
+    if (!ok) {
+      return next({ status: 400, message: 'Invalid Last.fm API key' });
+    }
+    return res.status(200).json({ success: true });
+  } catch (e) {
+    logger.error('Failed to test Last.fm API key', {
+      label: 'Last.fm',
+      message: e.message,
+    });
+    return next({ status: 500, message: 'Failed to connect to Last.fm' });
+  }
 });
 
 export default settingsRoutes;

@@ -83,6 +83,16 @@ export interface RadarrSettings extends DVRSettings {
   minimumAvailability: string;
 }
 
+export interface LidarrSettings extends DVRSettings {
+  metadataProfileId: number;
+  metadataProfileName: string;
+}
+
+export interface LastFmSettings {
+  apiKey: string;
+  username?: string;
+}
+
 export interface SonarrSettings extends DVRSettings {
   seriesType: 'standard' | 'daily' | 'anime';
   animeSeriesType: 'standard' | 'daily' | 'anime';
@@ -341,6 +351,7 @@ export type JobId =
   | 'plex-refresh-token'
   | 'radarr-scan'
   | 'sonarr-scan'
+  | 'lidarr-scan'
   | 'download-sync'
   | 'download-sync-reset'
   | 'jellyfin-recently-added-scan'
@@ -359,6 +370,8 @@ export interface AllSettings {
   tautulli: TautulliSettings;
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
+  lidarr: LidarrSettings[];
+  lastfm: LastFmSettings;
   public: PublicSettings;
   notifications: NotificationSettings;
   jobs: Record<JobId, JobSettings>;
@@ -431,6 +444,11 @@ class Settings {
       },
       radarr: [],
       sonarr: [],
+      lidarr: [],
+      lastfm: {
+        apiKey: '',
+        username: '',
+      },
       public: {
         initialized: false,
       },
@@ -553,6 +571,9 @@ class Settings {
         'sonarr-scan': {
           schedule: '0 30 4 * * *',
         },
+        'lidarr-scan': {
+          schedule: '0 0 5 * * *',
+        },
         'availability-sync': {
           schedule: '0 0 5 * * *',
         },
@@ -657,6 +678,22 @@ class Settings {
 
   set sonarr(data: SonarrSettings[]) {
     this.data.sonarr = data;
+  }
+
+  get lidarr(): LidarrSettings[] {
+    return this.data.lidarr;
+  }
+
+  set lidarr(data: LidarrSettings[]) {
+    this.data.lidarr = data;
+  }
+
+  get lastfm(): LastFmSettings {
+    return this.data.lastfm;
+  }
+
+  set lastfm(data: LastFmSettings) {
+    this.data.lastfm = data;
   }
 
   get public(): PublicSettings {

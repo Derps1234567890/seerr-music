@@ -215,9 +215,55 @@ class PlexScanner
         plexitem.type === 'season'
       ) {
         await this.processPlexShow(plexitem);
+      } else if (
+        plexitem.type === 'artist' ||
+        plexitem.type === 'album' ||
+        plexitem.type === 'track'
+      ) {
+        await this.processPlexMusic(plexitem);
       }
     } catch (e) {
       this.log('Failed to process Plex media', 'error', {
+        errorMessage: e.message,
+        title: plexitem.title,
+      });
+    }
+  }
+
+  private async processPlexMusic(plexitem: PlexLibraryItem) {
+    // Resolve to the album level for consistent tracking
+    const ratingKey =
+      plexitem.parentRatingKey ?? plexitem.ratingKey;
+
+    try {
+      const metadata = await this.plexClient.getMetadata(ratingKey);
+      const guids: string[] = metadata.Guid?.map((g: { id: string }) => g.id) ?? [];
+
+      // Extract MusicBrainz release-group or album MBID from Plex GUIDs
+      const mbGuid = guids.find(
+        (g) =>
+          g.startsWith('mbid://') ||
+          g.startsWith('musicbrainz://')
+      );
+
+      if (!mbGuid) {
+        this.log(
+          'No MusicBrainz GUID found for Plex music item. Skipping.',
+          'debug',
+          { title: plexitem.title, guids }
+        );
+        return;
+      }
+
+      const mbId = mbGuid.replace(/^(mbid|musicbrainz):\/\//, '');
+
+      await this.processMusic(mbId, {
+        mediaAddedAt: new Date(plexitem.addedAt * 1000),
+        ratingKey: plexitem.ratingKey,
+        title: plexitem.title,
+      });
+    } catch (e) {
+      this.log('Failed to process Plex music item', 'error', {
         errorMessage: e.message,
         title: plexitem.title,
       });

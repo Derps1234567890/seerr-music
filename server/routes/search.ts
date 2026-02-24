@@ -1,3 +1,4 @@
+import MusicBrainzAPI from '@server/api/musicbrainz';
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbSearchMultiResponse } from '@server/api/themoviedb/interfaces';
 import Media from '@server/entity/Media';
@@ -100,6 +101,39 @@ searchRoutes.get('/company', async (req, res, next) => {
       status: 500,
       message: 'Unable to retrieve company search results.',
     });
+  }
+});
+
+/**
+ * GET /api/v1/search/music
+ *
+ * Searches MusicBrainz for artists and release groups (albums).
+ * MusicBrainz has the broadest coverage of any music database, including
+ * indie, self-released and lesser-known artists from every genre and region.
+ */
+searchRoutes.get('/music', async (req, res, next) => {
+  const query = req.query.query as string;
+  const page = Number(req.query.page ?? 1);
+  const limit = 20;
+  const offset = (page - 1) * limit;
+
+  try {
+    const mb = new MusicBrainzAPI();
+    const { artists, albums } = await mb.searchMusic({ query, limit });
+
+    return res.status(200).json({
+      page,
+      totalResults: artists.length + albums.length,
+      artists,
+      albums,
+    });
+  } catch (e) {
+    logger.debug('Music search failed', {
+      label: 'Search API',
+      errorMessage: e.message,
+      query,
+    });
+    return next({ status: 500, message: 'Unable to retrieve music search results.' });
   }
 });
 

@@ -91,6 +91,115 @@ class BaseScanner<T> {
     return existing;
   }
 
+  private async getExistingByMbId(mbId: string) {
+    const mediaRepository = getRepository(Media);
+
+    const existing = await mediaRepository.findOne({
+      where: { mbId, mediaType: MediaType.MUSIC },
+    });
+
+    return existing;
+  }
+
+  protected async processMusic(
+    mbId: string,
+    {
+      mediaAddedAt,
+      ratingKey,
+      jellyfinMediaId,
+      serviceId,
+      externalServiceId,
+      externalServiceSlug,
+      title = 'Unknown Title',
+      processing = false,
+    }: Omit<ProcessOptions, 'is4k' | 'imdbId'> = {}
+  ): Promise<void> {
+    const mediaRepository = getRepository(Media);
+
+    await this.asyncLock.dispatch(mbId, async () => {
+      const existing = await this.getExistingByMbId(mbId);
+
+      if (existing) {
+        let changedExisting = false;
+
+        if (existing.status !== MediaStatus.AVAILABLE) {
+          existing.status = !processing
+            ? MediaStatus.AVAILABLE
+            : existing.status === MediaStatus.DELETED
+              ? MediaStatus.DELETED
+              : MediaStatus.PROCESSING;
+          if (mediaAddedAt) existing.mediaAddedAt = mediaAddedAt;
+          changedExisting = true;
+        }
+
+        if (!changedExisting && !existing.mediaAddedAt && mediaAddedAt) {
+          existing.mediaAddedAt = mediaAddedAt;
+          changedExisting = true;
+        }
+
+        if (ratingKey && existing.ratingKey !== ratingKey) {
+          existing.ratingKey = ratingKey;
+          changedExisting = true;
+        }
+
+        if (jellyfinMediaId && existing.jellyfinMediaId !== jellyfinMediaId) {
+          existing.jellyfinMediaId = jellyfinMediaId;
+          changedExisting = true;
+        }
+
+        if (serviceId !== undefined && existing.serviceId !== serviceId) {
+          existing.serviceId = serviceId;
+          changedExisting = true;
+        }
+
+        if (
+          externalServiceId !== undefined &&
+          existing.externalServiceId !== externalServiceId
+        ) {
+          existing.externalServiceId = externalServiceId;
+          changedExisting = true;
+        }
+
+        if (
+          externalServiceSlug !== undefined &&
+          existing.externalServiceSlug !== externalServiceSlug
+        ) {
+          existing.externalServiceSlug = externalServiceSlug;
+          changedExisting = true;
+        }
+
+        if (changedExisting) {
+          await mediaRepository.save(existing);
+          this.log(
+            `Music media for ${title} exists. Changes detected, updating.`,
+            'info'
+          );
+        } else {
+          this.log(`Music title already exists and no changes detected for ${title}`);
+        }
+      } else {
+        const newMedia = new Media();
+        newMedia.mbId = mbId;
+        newMedia.tmdbId = 0;
+        newMedia.status = !processing
+          ? MediaStatus.AVAILABLE
+          : MediaStatus.PROCESSING;
+        newMedia.status4k = MediaStatus.UNKNOWN;
+        newMedia.mediaType = MediaType.MUSIC;
+        newMedia.serviceId = serviceId;
+        newMedia.externalServiceId = externalServiceId;
+        newMedia.externalServiceSlug = externalServiceSlug;
+
+        if (mediaAddedAt) newMedia.mediaAddedAt = mediaAddedAt;
+        if (ratingKey) newMedia.ratingKey = ratingKey;
+        if (jellyfinMediaId) newMedia.jellyfinMediaId = jellyfinMediaId;
+
+        await mediaRepository.save(newMedia);
+        this.log(`Saved new music media: ${title}`);
+      }
+    });
+  }
+
   protected async processMovie(
     tmdbId: number,
     {
