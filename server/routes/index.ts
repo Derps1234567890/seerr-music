@@ -36,6 +36,7 @@ import issueRoutes from './issue';
 import issueCommentRoutes from './issueComment';
 import mediaRoutes from './media';
 import movieRoutes from './movie';
+import musicRoutes from './music';
 import personRoutes from './person';
 import requestRoutes from './request';
 import searchRoutes from './search';
@@ -164,6 +165,7 @@ router.use(
   blocklistRoutes
 );
 router.use('/movie', isAuthenticated(), movieRoutes);
+router.use('/music', isAuthenticated(), musicRoutes);
 router.use('/tv', isAuthenticated(), tvRoutes);
 router.use('/media', isAuthenticated(), mediaRoutes);
 router.use('/person', isAuthenticated(), personRoutes);

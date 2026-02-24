@@ -439,11 +439,59 @@ class JellyfinScanner
     }
   }
 
+  private async processJellyfinMusic(item: JellyfinLibraryItem): Promise<void> {
+    try {
+      // Resolve to album level for consistent tracking
+      const albumId = item.AlbumId ?? item.Id;
+      const metadata = await this.jfClient.getItemData(albumId);
+
+      if (!metadata?.Id) {
+        this.log('No metadata for Jellyfin music item. Skipping.', 'debug', {
+          itemId: item.Id,
+        });
+        return;
+      }
+
+      // Prefer MusicBrainzReleaseGroup ID (matches what Lidarr uses)
+      const mbId =
+        metadata.ProviderIds?.MusicBrainzReleaseGroup ??
+        metadata.ProviderIds?.MusicBrainzAlbum;
+
+      if (!mbId) {
+        this.log(
+          'No MusicBrainz ID found for Jellyfin music item. Skipping.',
+          'debug',
+          { title: metadata.Name, providerIds: metadata.ProviderIds }
+        );
+        return;
+      }
+
+      await this.processMusic(mbId, {
+        mediaAddedAt: metadata.DateCreated
+          ? new Date(metadata.DateCreated)
+          : undefined,
+        jellyfinMediaId: metadata.Id,
+        title: metadata.Name,
+      });
+    } catch (e) {
+      this.log(`Failed to process Jellyfin music item: ${item.Id}`, 'error', {
+        errorMessage: e.message,
+        item,
+      });
+    }
+  }
+
   private async processItem(item: JellyfinLibraryItem): Promise<void> {
     if (item.Type === 'Movie') {
       await this.processJellyfinMovie(item);
     } else if (item.Type === 'Series') {
       await this.processJellyfinShow(item);
+    } else if (
+      item.Type === 'MusicAlbum' ||
+      item.Type === 'Audio' ||
+      item.Type === 'MusicArtist'
+    ) {
+      await this.processJellyfinMusic(item);
     }
   }
 

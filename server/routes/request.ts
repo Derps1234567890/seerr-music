@@ -173,6 +173,11 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
             type: MediaType.TV,
           });
           break;
+        case 'music':
+          query = query.andWhere('request.type = :type', {
+            type: MediaType.MUSIC,
+          });
+          break;
       }
 
       const [requests, requestCount] = await query
@@ -213,6 +218,22 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         })
       );
 
+      // get all quality profiles for every configured lidarr server
+      const LidarrAPI = (await import('@server/api/servarr/lidarr')).default;
+      const lidarrServers = await Promise.all(
+        settings.lidarr.map(async (lidarrSetting) => {
+          const lidarr = new LidarrAPI({
+            apiKey: lidarrSetting.apiKey,
+            url: LidarrAPI.buildUrl(lidarrSetting, '/api/v1'),
+          });
+
+          return {
+            id: lidarrSetting.id,
+            profiles: await lidarr.getProfiles().catch(() => undefined),
+          };
+        })
+      );
+
       // add profile names to the media requests, with undefined if not found
       let mappedRequests = requests.map((r) => {
         switch (r.type) {
@@ -230,6 +251,14 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
             return {
               ...r,
               profileName: sonarrServers
+                .find((serverr) => serverr.id === r.serverId)
+                ?.profiles?.find((profile) => profile.id === r.profileId)?.name,
+            };
+          }
+          case MediaType.MUSIC: {
+            return {
+              ...r,
+              profileName: lidarrServers
                 .find((serverr) => serverr.id === r.serverId)
                 ?.profiles?.find((profile) => profile.id === r.profileId)?.name,
             };
@@ -260,6 +289,14 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
                   (server) =>
                     server.id ===
                     (r.is4k ? r.media.serviceId4k : r.media.serviceId)
+                ),
+              };
+            }
+            case MediaType.MUSIC: {
+              return {
+                ...r,
+                canRemove: lidarrServers.some(
+                  (server) => server.id === r.media.serviceId
                 ),
               };
             }

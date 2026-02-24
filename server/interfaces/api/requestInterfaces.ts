@@ -16,6 +16,7 @@ export interface RequestResultsResponse extends PaginatedResponse {
 export type MediaRequestBody = {
   mediaType: MediaType;
   mediaId: number;
+  mbId?: string;
   tvdbId?: number;
   seasons?: number[] | 'all';
   is4k?: boolean;

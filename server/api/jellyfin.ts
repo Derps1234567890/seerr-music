@@ -66,12 +66,13 @@ export interface JellyfinLibraryItem {
   Name: string;
   Id: string;
   HasSubtitles: boolean;
-  Type: 'Movie' | 'Episode' | 'Season' | 'Series';
+  Type: 'Movie' | 'Episode' | 'Season' | 'Series' | 'MusicAlbum' | 'Audio' | 'MusicArtist';
   LocationType: 'FileSystem' | 'Offline' | 'Remote' | 'Virtual';
   SeriesName?: string;
   SeriesId?: string;
   SeasonId?: string;
   SeasonName?: string;
+  AlbumId?: string;
   IndexNumber?: number;
   IndexNumberEnd?: number;
   ParentIndexNumber?: number;
@@ -104,6 +105,10 @@ export interface JellyfinLibraryItemExtended extends JellyfinLibraryItem {
     Imdb?: string;
     Tvdb?: string;
     AniDB?: string;
+    MusicBrainzArtist?: string;
+    MusicBrainzAlbum?: string;
+    MusicBrainzReleaseGroup?: string;
+    MusicBrainzTrack?: string;
   };
   MediaSources?: JellyfinMediaSource[];
   Width?: number;
