@@ -97,8 +97,11 @@ const MusicPage: NextPage = () => {
               </h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                 {data.artists.slice(0, 10).map((artist) => (
-                  <Link key={artist.id} href={`/music/artist/${artist.id}`}>
-                    <a className="group flex flex-col overflow-hidden rounded-lg bg-gray-800 p-4 shadow transition hover:bg-gray-700">
+                  <Link
+                    key={artist.id}
+                    href={`/music/artist/${artist.id}`}
+                    className="group flex flex-col overflow-hidden rounded-lg bg-gray-800 p-4 shadow transition hover:bg-gray-700"
+                  >
                       <div className="mb-3 flex h-20 items-center justify-center rounded-full bg-gray-700 group-hover:bg-gray-600">
                         <svg
                           className="h-10 w-10 text-gray-400"
@@ -121,7 +124,6 @@ const MusicPage: NextPage = () => {
                           {artist.type}
                         </p>
                       )}
-                    </a>
                   </Link>
                 ))}
               </div>
@@ -135,8 +137,11 @@ const MusicPage: NextPage = () => {
               </h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {data.releaseGroups.slice(0, 12).map((album) => (
-                  <Link key={album.id} href={`/music/album/${album.id}`}>
-                    <a className="group flex flex-col overflow-hidden rounded-lg bg-gray-800 shadow transition hover:bg-gray-700">
+                  <Link
+                    key={album.id}
+                    href={`/music/album/${album.id}`}
+                    className="group flex flex-col overflow-hidden rounded-lg bg-gray-800 shadow transition hover:bg-gray-700"
+                  >
                       <div className="flex h-40 items-center justify-center bg-gray-700 group-hover:bg-gray-600">
                         <svg
                           className="h-16 w-16 text-gray-500"
@@ -169,7 +174,6 @@ const MusicPage: NextPage = () => {
                           </p>
                         )}
                       </div>
-                    </a>
                   </Link>
                 ))}
               </div>

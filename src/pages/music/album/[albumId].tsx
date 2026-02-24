@@ -61,10 +61,9 @@ const AlbumDetailPage: NextPage = () => {
                   <Link
                     key={index}
                     href={`/music/artist/${credit.artist.id}`}
+                    className="text-indigo-400 hover:text-indigo-300 hover:underline"
                   >
-                    <a className="text-indigo-400 hover:text-indigo-300 hover:underline">
-                      {credit.name}
-                    </a>
+                    {credit.name}
                   </Link>
                 ))}
               </div>

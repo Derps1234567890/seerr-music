@@ -62,8 +62,11 @@ const ArtistDetailPage: NextPage = () => {
           </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {albums.map((album) => (
-              <Link key={album.id} href={`/music/album/${album.id}`}>
-                <a className="group flex flex-col overflow-hidden rounded-lg bg-gray-800 shadow transition hover:bg-gray-700">
+              <Link
+                key={album.id}
+                href={`/music/album/${album.id}`}
+                className="group flex flex-col overflow-hidden rounded-lg bg-gray-800 shadow transition hover:bg-gray-700"
+              >
                   <div className="flex h-40 items-center justify-center bg-gray-700 group-hover:bg-gray-600">
                     <svg
                       className="h-16 w-16 text-gray-500"
@@ -88,7 +91,6 @@ const ArtistDetailPage: NextPage = () => {
                       </p>
                     )}
                   </div>
-                </a>
               </Link>
             ))}
           </div>

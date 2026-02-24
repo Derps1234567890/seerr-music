@@ -83,7 +83,7 @@ lidarrRoutes.put<{ id: string }, LidarrSettings, LidarrSettings>(
     );
 
     if (lidarrIndex === -1) {
-      return next({ status: '404', message: 'Settings instance not found' });
+      return next({ status: 404, message: 'Settings instance not found' });
     }
 
     if (req.body.isDefault) {
@@ -112,7 +112,7 @@ lidarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   );
 
   if (!lidarrSettings) {
-    return next({ status: '404', message: 'Settings instance not found' });
+    return next({ status: 404, message: 'Settings instance not found' });
   }
 
   const lidarr = new LidarrAPI({
@@ -138,7 +138,7 @@ lidarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   );
 
   if (lidarrIndex === -1) {
-    return next({ status: '404', message: 'Settings instance not found' });
+    return next({ status: 404, message: 'Settings instance not found' });
   }
 
   const removed = settings.lidarr.splice(lidarrIndex, 1);
