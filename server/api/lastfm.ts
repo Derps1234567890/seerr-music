@@ -261,6 +261,28 @@ class LastFmAPI extends ExternalAPI {
       return false;
     }
   };
+
+  /** Get globally trending artists from Last.fm charts. */
+  public getChartTopArtists = async ({
+    limit = 20,
+  }: {
+    limit?: number;
+  } = {}): Promise<LastFmArtist[]> => {
+    try {
+      const data = await this.get<{
+        artists: { artist: LastFmArtist[] };
+      }>('', {
+        params: { method: 'chart.getTopArtists', limit },
+      });
+      return data.artists?.artist ?? [];
+    } catch (e) {
+      logger.error('Last.fm getChartTopArtists failed', {
+        label: 'Last.fm',
+        errorMessage: e.message,
+      });
+      return [];
+    }
+  };
 }
 
 export default LastFmAPI;

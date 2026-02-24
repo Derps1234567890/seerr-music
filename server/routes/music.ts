@@ -95,11 +95,9 @@ musicRoutes.get('/recommendations', async (req, res, next) => {
       return res.status(200).json({ topArtists, topAlbums, similarArtists });
     } else {
       // No username configured – return chart top artists as generic suggestions
-      const chartData = await fetch(
-        `https://ws.audioscrobbler.com/2.0/?method=chart.getTopArtists&api_key=${apiKey}&limit=20&format=json`
-      ).then((r) => r.json());
+      const chartArtists = await lastfm.getChartTopArtists({ limit: 20 });
       return res.status(200).json({
-        topArtists: chartData?.artists?.artist ?? [],
+        topArtists: chartArtists,
         topAlbums: [],
         similarArtists: [],
       });

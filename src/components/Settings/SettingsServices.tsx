@@ -19,7 +19,7 @@ import type OverrideRule from '@server/entity/OverrideRule';
 import type { OverrideRuleResultsResponse } from '@server/interfaces/api/overrideRuleInterfaces';
 import type { LidarrSettings, RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import axios from 'axios';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
@@ -291,12 +291,12 @@ const SettingsServices = () => {
   const [lastfmTesting, setLastfmTesting] = useState(false);
 
   // Populate Last.fm form when data loads
-  useState(() => {
+  useEffect(() => {
     if (lastfmData) {
       setLastfmApiKey(lastfmData.apiKey ?? '');
       setLastfmUsername(lastfmData.username ?? '');
     }
-  });
+  }, [lastfmData]);
 
   const deleteServer = async () => {
     await axios.delete(
